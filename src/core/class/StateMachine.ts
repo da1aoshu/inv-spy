@@ -5,7 +5,7 @@ import {ProxyPool} from "./ProxyPool";
 import {handleStateData} from "../handle";
 import {StateType, StateValue} from "../interface";
 import {handleClearCache, handleItemsDiff, handleRawInventoryData} from "../handle";
-import {steam_429, config, getRandomUserAgent, saveUpdateLog, logger} from "../../utils";
+import {steam_429, config, getRandomUserAgent, saveUpdateLog, logger, proxy_fail} from "../../utils";
 
 superagent_proxy(superagent);
 
@@ -109,6 +109,11 @@ export default class StateMachine {
                             steam_429.set(proxy_agent, true);
                         }
 
+                        // 失败代理记入缓存
+                        if(err) {
+                            proxy_fail.set(proxy_agent, true);
+                        }
+
                         if(proxy && times < 60) {
                             logger.info(proxy_agent+' 代理请求失败，重新尝试中');
                             return resolve(this.getInventory(times + 1));
@@ -136,7 +141,7 @@ export default class StateMachine {
         return this.getInventory().then((data: any) => {
             if(!data) {
                 logger.info('库存监控更新失败');
-                console.log("更新失败：" + timestamp);
+                console.log("更新失败：" + new Date(timestamp).toLocaleString());
                 this.status = false;
                 return;
             }

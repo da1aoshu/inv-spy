@@ -96,8 +96,7 @@ const app = async (retry: boolean = false) => {
         logger.info(`开始库存监控：${steam_id}`);
 
         let manager = new StateManager(interval, api_url || '');
-        manager.addStateMachine(steam_id);
-        manager.once();
+        manager.addStateMachine(steam_id).update();
         setInterval(() => {
             manager.once();
         }, 1000 * interval)

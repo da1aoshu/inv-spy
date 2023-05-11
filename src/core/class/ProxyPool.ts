@@ -1,6 +1,6 @@
 import superagent from "superagent";
 import {StateManager} from "./StateManager";
-import {steam_429, config, getRandomUserAgent} from "../../utils";
+import {steam_429, config, getRandomUserAgent, proxy_fail} from "../../utils";
 
 export class ProxyPool {
     private state: boolean;
@@ -21,13 +21,14 @@ export class ProxyPool {
     init() {
         let times = this.state_manager.getIpTimes() * 10;
         this.superagent_state = new Promise((resolve) => {
+            let key = config.get("proxy_param") || "num";
             superagent.get(this.proxy_pool_url)
                 .set('User-Agent', getRandomUserAgent())
-                .set('Content-Type', 'application/json; charset=utf-8')
-                .query({ [config.get("proxy_param") || "num"]: times })
+                .query({ [key]: times })
                 .end((err, res) => {
-                    resolve(this.superagent_state = null);
-                    if(err || res.status !== 200) return;
+                    if(err || res.status !== 200) {
+                        return resolve(this.superagent_state = null);
+                    }
 
                     let data = res.body;
                     if(Array.isArray(data)) {
@@ -35,13 +36,18 @@ export class ProxyPool {
                         data.forEach((temp: string) => {
                             let item = "http://" + temp;
                             if(steam_429.has(item)) return;
+                            if(proxy_fail.has(item)) return;
 
                             result.add(item);
                         });
 
+                        if(!result.size) resolve(this.init());
+
                         // 将最新获取的放到代理池队列出口处
                         this.proxy_pool.push(...result);
                     }
+
+                    resolve(this.superagent_state = null);
                 })
         });
 
