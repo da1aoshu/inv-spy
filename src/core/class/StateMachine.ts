@@ -4,7 +4,7 @@ import {DataBase} from "./DataBase";
 import {ProxyPool} from "./ProxyPool";
 import {handleStateData} from "../handle";
 import {StateType, StateValue} from "../interface";
-import {handleClearCache, handleItemsDiff, handleRawInventoryData} from "../handle";
+import {handleItemsDiff, handleRawInventoryData} from "../handle";
 import {steam_429, config, getRandomUserAgent, saveUpdateLog, logger, proxy_fail} from "../../utils";
 
 superagent_proxy(superagent);
@@ -88,7 +88,6 @@ export default class StateMachine {
 
     async getInventory(times: number = 0) {
         let proxy = config.has("proxy_url");
-
         // 尝试60次还无效就判定为死亡
         if(times === 60) return this.is_dead = false;
 
@@ -105,8 +104,10 @@ export default class StateMachine {
                 .end((err, res) => {
                     if(err || res?.status !== 200) {
                         // 429 ip记入缓存
-                        if(proxy_agent && res?.status === 429) {
-                            steam_429.set(proxy_agent, true);
+                        if(res?.status === 429) {
+                            logger.warn("请求频繁，steam拒绝访问");
+
+                            if(proxy_agent) steam_429.set(proxy_agent, true);
                         }
 
                         // 失败代理记入缓存
@@ -373,6 +374,14 @@ export default class StateMachine {
             saveUpdateLog.info(output);
         }
 
-        if(this.ready === -1) handleClearCache(this.state);
+        buy.clear();
+        sell.clear();
+        deposit.clear();
+        retrieve.clear();
+
+        if(this.ready === -1) {
+            this.state.value.items.clear();
+            this.state.value.units.clear();
+        }
     }
 }
