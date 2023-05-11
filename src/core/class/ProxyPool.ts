@@ -1,6 +1,6 @@
 import superagent from "superagent";
-import {steam_429, config} from "../../utils";
 import {StateManager} from "./StateManager";
+import {steam_429, config, getRandomUserAgent} from "../../utils";
 
 export class ProxyPool {
     private state: boolean;
@@ -22,7 +22,7 @@ export class ProxyPool {
         let times = this.state_manager.getIpTimes() * 10;
         this.superagent_state = new Promise((resolve) => {
             superagent.get(this.proxy_pool_url)
-                .set('User-Agent', 'inv-spy/1.0.1 da1aoshu')
+                .set('User-Agent', getRandomUserAgent())
                 .set('Content-Type', 'application/json; charset=utf-8')
                 .query({ [config.get("proxy_param") || "num"]: times })
                 .end((err, res) => {

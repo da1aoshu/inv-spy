@@ -1,12 +1,16 @@
-import {handleClearCache, handleItemsDiff, handleRawInventoryData} from "../handle";
-import { StateType, StateValue } from "../interface";
+import superagent from "superagent";
+import superagent_proxy from "superagent-proxy";
 import {DataBase} from "./DataBase";
-import {handleStateData} from "../handle";
-import superagent, {steam_429, config, getRandomUserAgent, saveUpdateLog, logger} from "../../utils";
 import {ProxyPool} from "./ProxyPool";
+import {handleStateData} from "../handle";
+import {StateType, StateValue} from "../interface";
+import {handleClearCache, handleItemsDiff, handleRawInventoryData} from "../handle";
+import {steam_429, config, getRandomUserAgent, saveUpdateLog, logger} from "../../utils";
+
+superagent_proxy(superagent);
 
 export default class StateMachine {
-    private id: string;
+    private readonly id: string;
     private db: DataBase;
     private ready: -1|0|1|2;
     private status: boolean;
@@ -82,23 +86,22 @@ export default class StateMachine {
         src.set(name, (value || 0) + 1);
     }
 
-   async getInventory(times: number = 0) {
-       let proxy = config.has("proxy_url");
-       if(!proxy && times) return;
+    async getInventory(times: number = 0) {
+        let proxy = config.has("proxy_url");
 
-       // 尝试60次还无效就判定为死亡
-       if(times === 60) return this.is_dead = false;
+        // 尝试60次还无效就判定为死亡
+        if(times === 60) return this.is_dead = false;
 
-       let user_agent  = getRandomUserAgent();
-       let proxy_agent = proxy ? await this.proxy_pool.take() : '';
+        let user_agent  = getRandomUserAgent();
+        let proxy_agent = proxy ? await this.proxy_pool.take() : '';
 
         return new Promise((resolve) => {
             superagent.get(`https://steamcommunity.com/inventory/${this.id}/730/2?l=schinese&count=1000`)
+                .timeout(3000)
+                .disableTLSCerts()
                 .proxy(proxy_agent)
                 .set('User-Agent', user_agent)
                 .set('Content-Type', 'application/json; charset=utf-8')
-                .timeout(3000)
-                .disableTLSCerts()
                 .end((err, res) => {
                     if(err || res?.status !== 200) {
                         // 429 ip记入缓存
@@ -106,7 +109,12 @@ export default class StateMachine {
                             steam_429.set(proxy_agent, true);
                         }
 
-                        resolve(this.getInventory(times + 1));
+                        if(proxy && times < 60) {
+                            logger.info(proxy_agent+' 代理请求失败，重新尝试中');
+                            return resolve(this.getInventory(times + 1));
+                        }
+
+                        resolve(null);
                     } else {
                         resolve(res.body);
                         this.proxy_pool.setIp(proxy_agent);

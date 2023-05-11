@@ -3,7 +3,7 @@
 import fs from "fs";
 import path from "path";
 import inquirer from "inquirer";
-import {config as cache, isUrl, logger} from "./utils";
+import {config as cache, getRandomUserAgent, isUrl, logger} from "./utils";
 import {StateManager} from "./core/class/StateManager";
 
 const app = async (retry: boolean = false) => {
@@ -30,13 +30,18 @@ const app = async (retry: boolean = false) => {
             name: 'proxy_url',
             message: '请输入代理池API：',
             when: ({ proxy }: any) => proxy,
-            validate: (input: any) => isUrl(input) || '请输入正确的代理池地址'
+            validate: (input: any) => {
+                if(isUrl(input)) return true;
+
+                return '请输入正确的代理池地址';
+            }
         },{
             type: 'input',
             name: 'proxy_param',
+            default: 'num',
             message: '请输入代理池控制数量的参数：',
             when: ({ proxy }) => proxy,
-            validate: (input: any) => input.length
+            validate: (input: any) => input.length || '请输入正确的参数'
         },{
             type: 'input',
             name: 'interval',
@@ -59,10 +64,10 @@ const app = async (retry: boolean = false) => {
 
     fs.promises.readFile(config_path, 'utf8').then((config: any) => {
         config = JSON.parse(config);
-        let { steam_id = '', proxy: { parma = '', api_url }, interval = 60 } = config;
+        let { steam_id = '', proxy: { param, api_url }, interval = 60 } = config;
 
+        steam_id = steam_id.toString();
         interval = parseInt(interval.toString());
-        steam_id = parseInt(steam_id.toString()).toString();
 
         if(steam_id.length !== 17) {
             logger.error("config.json 中的steam_id配置错误");
@@ -75,7 +80,7 @@ const app = async (retry: boolean = false) => {
         }
 
         if(api_url) {
-            if(isUrl(api_url)) {
+            if(!isUrl(api_url)) {
                 logger.error("config.json 中的api_url配置错误");
                 return app(true);
             }
@@ -85,8 +90,10 @@ const app = async (retry: boolean = false) => {
         cache.set('interval', interval);
         if(api_url) {
             cache.set('proxy_url', api_url);
-            cache.set('proxy_param', parma);
+            cache.set('proxy_param', param);
         }
+
+        logger.info(`开始库存监控：${steam_id}`);
 
         let manager = new StateManager(interval, api_url || '');
         manager.addStateMachine(steam_id);
