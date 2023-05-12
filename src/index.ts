@@ -3,6 +3,7 @@
 import fs from "fs";
 import path from "path";
 import inquirer from "inquirer";
+import schedule from "node-schedule";
 import {config as cache, isUrl, logger} from "./utils";
 import {StateManager} from "./core/class/StateManager";
 
@@ -65,7 +66,7 @@ const app = async (retry: boolean = false) => {
             default: 60,
             validate: (input: any) => !!parseInt(input)
         }]).then(({ steam_id, interval, proxy, proxy_url, proxy_param, proxy_local }: any) => {
-            steam_id = steam_id.split('\r\n');
+            steam_id = steam_id.replace('\r').split('\n');
             if(steam_id.length === 1) steam_id = steam_id[0];
 
             return fs.promises.writeFile(config_path, JSON.stringify({
@@ -131,10 +132,12 @@ const app = async (retry: boolean = false) => {
             manager.addStateMachine(id);
         })
 
+        let rule = new schedule.RecurrenceRule();
+        rule.second = interval;
         manager.once();
-        setInterval(() => {
+        schedule.scheduleJob(rule, () => {
             manager.once();
-        }, 1000 * interval)
+        })
     })
 }
 

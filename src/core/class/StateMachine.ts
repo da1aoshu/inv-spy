@@ -83,9 +83,7 @@ export default class StateMachine {
             // 更新状态的数量
             handleStateData(this.state.value);
             this.ready = 1;
-        }).catch(() => {
-            this.ready = 0;
-        })
+        }).catch(() => Promise.reject(this.ready = 0));
     }
 
     /**
@@ -132,7 +130,9 @@ export default class StateMachine {
                         }
 
                         if(has_proxy && times < 60) {
-                            logger.error((proxy_agent || '无代理ip') + ' 代理请求失败，重新尝试中');
+                            let message = `${proxy_agent || '无代理IP'} 代理请求失败，重新尝试中`;
+                            console.log(message);
+                            logger.error(message);
                             return resolve(this.getInventory(times + 1));
                         }
 
@@ -317,12 +317,11 @@ export default class StateMachine {
                 logger.error(`库存数据保存失败${this.id}`);
                 console.log(`----------保存失败(${new Date(timestamp).toLocaleString()})----------`)
             }).finally(() => {
-                this.status = false;
-
                 // 更新消息
                 this.sendUpdateMessage(doubt, [items_count_diff, units_count_diff]);
+                this.status = false;
             });
-        });
+        })
     }
     sendUpdateMessage(doubt: Map<string, number>, diff: [number, number]) {
         let {  operate: { buy, sell, deposit, retrieve }  } = this.state.update;
