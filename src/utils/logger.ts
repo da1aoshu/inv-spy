@@ -7,7 +7,7 @@ export const logger = createLogger({
         format.timestamp({ format: "YYYY-MM-DD HH:mm:ss.SSS" }),
         format.printf(
             (info) =>
-            `[${info.level}] - ${info.message} ${info.timestamp}`
+                `[${info.level}] - ${info.message} ${info.timestamp}`
         )
     ),
     transports: [new transports.Console(), new dailyRoateFile({

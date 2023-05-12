@@ -94,7 +94,7 @@ export default class StateMachine {
      * @param market_name
      */
     saveDataToUpdate(src: Map<string, number>, { mark, tradable, market_name }: any) {
-        let name = (mark ? '*' : '') + market_name + (tradable ? ' 冷却中' : '');
+        let name = (mark ? '*' : '') + market_name + (tradable ? '' : ' 冷却中');
         let value = src.get(name);
         src.set(name, (value || 0) + 1);
     }
@@ -106,7 +106,7 @@ export default class StateMachine {
         if(times === 60) return this.is_dead = false;
 
         let user_agent  = getRandomUserAgent();
-        let proxy_agent = has_proxy ? await this.proxy_pool.take() : '';
+        let proxy_agent = has_proxy ? (await this.proxy_pool.take()) : '';
 
         return new Promise((resolve) => {
             superagent.get(`https://steamcommunity.com/inventory/${this.id}/730/2?l=schinese&count=1000`)
@@ -130,9 +130,7 @@ export default class StateMachine {
                         }
 
                         if(has_proxy && times < 60) {
-                            let message = `${proxy_agent || '无代理IP'} 代理请求失败，重新尝试中`;
-                            console.log(message);
-                            logger.error(message);
+                            logger.error(`${proxy_agent || '无代理IP'} 代理请求失败，重新尝试中`);
                             return resolve(this.getInventory(times + 1));
                         }
 
@@ -150,16 +148,15 @@ export default class StateMachine {
      */
     async update() {
         // 如果没有初始化成功，重新初始化
+        if(this.status) return;
         if(this.ready !== 1) await this.initStateData();
 
-        if(this.status) return;
         this.status = true;
 
         let timestamp = new Date().getTime();
         return this.getInventory().then((data: any) => {
             if(!data) {
                 logger.error(`库存监控更新失败(${this.id})`);
-                console.log("更新失败：" + new Date(timestamp).toLocaleString());
                 this.status = false;
                 return;
             }
@@ -255,6 +252,7 @@ export default class StateMachine {
                         }
                     } else {
                         // 可信数据
+                        if(item?.mark) Reflect.deleteProperty(item, 'mark');
                         this.saveDataToUpdate(retrieve, item);
                     }
                 });
@@ -306,17 +304,11 @@ export default class StateMachine {
             }
 
             this.state.update.timestamp = timestamp;
-            logger.info(`库存监控更新成功${this.id}`);
 
             // 保存状态到本地
             Promise.all(Queue).then(() => {
                 // 释放内存
                 this.ready = -1;
-                logger.info(`库存数据保存成功${this.id}`);
-                console.log(`----------保存成功(${new Date(timestamp).toLocaleString()})----------`)
-            }).catch(() => {
-                logger.error(`库存数据保存失败${this.id}`);
-                console.log(`----------保存失败(${new Date(timestamp).toLocaleString()})----------`)
             }).finally(() => {
                 // 更新消息
                 this.sendUpdateMessage(doubt, [items_count_diff, units_count_diff]);
@@ -327,50 +319,40 @@ export default class StateMachine {
     sendUpdateMessage(doubt: Map<string, number>, diff: [number, number]) {
         let {  operate: { buy, sell, deposit, retrieve }  } = this.state.update;
 
-        let output = `----------保存成功(${new Date(this.state.update.timestamp).toLocaleString()})----------\n`;
+        let state = this.ready === -1;
+        let output = `----------保存${state ? '成功': '失败'}(${new Date(this.state.update.timestamp).toLocaleString()})----------\n`;
 
-        console.log("购买：");
         output = output.concat("购买：\n");
         buy.forEach((count, key) => {
-            console.log(`${key} × ${count}`);
             output = output.concat(`${key} × ${count}\n`);
         });
 
-        console.log("卖出：");
         output = output.concat("卖出：\n");
         sell.forEach((count, key) => {
             console.log(`${key} × ${count}`);
             output = output.concat(`${key} × ${count}\n`);
         });
 
-        console.log("存入：");
         output = output.concat("存入：\n");
         deposit.forEach((count, key) => {
-            console.log(`${key} × ${count}`);
             output = output.concat(`${key} × ${count}\n`);
         });
 
-        console.log("取回：");
         output = output.concat("取回：\n");
         retrieve.forEach((count, key) => {
-            console.log(`${key} × ${count}`);
             output = output.concat(`${key} × ${count}\n`);
         });
 
         // 存疑数据
-        console.log("卖出或存入：");
         output = output.concat("卖出或存入：\n");
         doubt.forEach((count, key) => {
-            console.log(`${key} × ${count}`);
             output = output.concat(`${key} × ${count}\n`);
         });
 
         // 组件数据
-        console.log("库存组件：");
         output = output.concat("库存组件：\n");
         this.state.value.units.forEach((item) => {
             if(item.timestamp === this.state.update.timestamp) {
-                console.log(`[${item?.fraudwarnings ? item.fraudwarnings : '无标签'}] × ${item.unitinfo?.count}`);
                 output = output.concat(`[${item?.fraudwarnings ? item.fraudwarnings : '无标签'}] × ${item.unitinfo?.count}\n`);
             }
         });
@@ -383,12 +365,12 @@ export default class StateMachine {
             diff[1] > 0 ? '+' + diff[1] : diff[1]
         }`;
 
-        console.log(text);
         output = output.concat(text);
-
         if(sell.size || buy.size || deposit.size || retrieve.size) {
             this.update_logger.info(output);
         }
+
+        console.log(output);
 
         buy.clear();
         sell.clear();
