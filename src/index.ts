@@ -3,7 +3,6 @@
 import fs from "fs";
 import path from "path";
 import inquirer from "inquirer";
-import schedule from "node-schedule";
 import {config as cache, isUrl, logger} from "./utils";
 import {StateManager} from "./core/class/StateManager";
 
