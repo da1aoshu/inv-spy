@@ -30,9 +30,6 @@ export class DataBase {
             fs.accessSync(units_path);
             fs.accessSync(items_path);
             fs.accessSync(update_path);
-            fs.writeFileSync(path.join(units_path, `${id}.json`), '');
-            fs.writeFileSync(path.join(items_path, `${id}.json`), '');
-            fs.writeFileSync(path.join(update_path, `${id}.json`), '');
         } catch(err) {
             mkdirs(units_path, () => {
                 fs.writeFileSync(path.join(units_path, `${id}.json`), '');

@@ -150,10 +150,7 @@ export default class StateMachine {
      */
     async update() {
         // 如果没有初始化成功，重新初始化
-        if(this.ready !== 1) {
-            await this.initStateData();
-            if(!this.ready) return;
-        }
+        if(this.ready !== 1) await this.initStateData();
 
         if(this.status) return;
         this.status = true;
