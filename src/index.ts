@@ -134,7 +134,7 @@ const app = async (retry: boolean = false) => {
         manager.once();
         setInterval(() => {
             manager.once()
-        }, interval);
+        }, interval * 1000);
     })
 }
 
