@@ -132,12 +132,10 @@ const app = async (retry: boolean = false) => {
             manager.addStateMachine(id);
         })
 
-        let rule = new schedule.RecurrenceRule();
-        rule.second = interval;
         manager.once();
-        schedule.scheduleJob(rule, () => {
-            manager.once();
-        })
+        setInterval(() => {
+            manager.once()
+        }, interval);
     })
 }
 
