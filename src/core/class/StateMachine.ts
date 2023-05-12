@@ -81,10 +81,8 @@ export default class StateMachine {
             // 更新状态的数量
             handleStateData(this.state.value);
             this.ready = 1;
-            console.log(6)
         }).catch(() => {
             this.ready = 0;
-            console.log(7)
         });
     }
 
@@ -151,16 +149,12 @@ export default class StateMachine {
      * 更新状态
      */
     async update() {
-        console.log(1)
         // 如果没有初始化成功，重新初始化
         if(this.ready !== 1) {
             await this.initStateData();
-            console.log(2, this.ready)
             if(!this.ready) return;
-            console.log(3)
         }
 
-        console.log(4)
         if(this.status) return;
         this.status = true;
 
