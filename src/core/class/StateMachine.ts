@@ -15,7 +15,7 @@ superagent_proxy(superagent);
 export default class StateMachine {
     private readonly id: string;
     private db: DataBase;
-    private ready: -1|0|1|2;
+    private ready: -1|0|1;
     private status: boolean;
     private is_dead: boolean;
     private proxy_pool: ProxyPool;
@@ -62,7 +62,6 @@ export default class StateMachine {
         this.ready = 0;
         this.status = false;
         this.is_dead = false;
-        this.initStateData();
     }
 
     active() {
@@ -73,9 +72,8 @@ export default class StateMachine {
      * 初始化数据
      */
     initStateData() {
-        if(this.ready !== 0 && this.ready !== -1) return;
+        if(this.ready !== 0) return;
 
-        this.ready = 2;
         return Promise.all([
             this.db.readDataToMemory(this.db.items_path, this.state.value.items),
             this.db.readDataToMemory(this.db.units_path, this.state.value.units),
@@ -83,7 +81,11 @@ export default class StateMachine {
             // 更新状态的数量
             handleStateData(this.state.value);
             this.ready = 1;
-        }).catch(() => Promise.reject(this.ready = 0));
+            console.log(6)
+        }).catch(() => {
+            this.ready = 0;
+            console.log(7)
+        });
     }
 
     /**
@@ -149,11 +151,19 @@ export default class StateMachine {
      * 更新状态
      */
     async update() {
+        console.log(1)
         // 如果没有初始化成功，重新初始化
-        if(this.ready !== 1) await this.initStateData();
-        if(this.status) return;
+        if(this.ready !== 1) {
+            await this.initStateData();
+            console.log(2, this.ready)
+            if(!this.ready) return;
+            console.log(3)
+        }
 
+        console.log(4)
+        if(this.status) return;
         this.status = true;
+
         let timestamp = new Date().getTime();
         return this.getInventory().then((data: any) => {
             if(!data) {
@@ -395,6 +405,7 @@ export default class StateMachine {
         retrieve.clear();
 
         if(this.ready === -1) {
+            this.ready = 0;
             this.state.value.items.clear();
             this.state.value.units.clear();
         }
