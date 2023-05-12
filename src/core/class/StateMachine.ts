@@ -1,3 +1,4 @@
+import {createLogger, format, Logger} from "winston";
 import superagent from "superagent";
 import superagent_proxy from "superagent-proxy";
 import {DataBase} from "./DataBase";
@@ -5,7 +6,9 @@ import {ProxyPool} from "./ProxyPool";
 import {handleStateData} from "../handle";
 import {StateType, StateValue} from "../interface";
 import {handleItemsDiff, handleRawInventoryData} from "../handle";
-import {steam_429, config, getRandomUserAgent, saveUpdateLog, logger, proxy_fail} from "../../utils";
+import {steam_429, config, getRandomUserAgent, logger, proxy_fail} from "../../utils";
+import dailyRoateFile from "winston-daily-rotate-file";
+import path from "path";
 
 superagent_proxy(superagent);
 
@@ -16,6 +19,7 @@ export default class StateMachine {
     private status: boolean;
     private is_dead: boolean;
     private proxy_pool: ProxyPool;
+    private update_logger: Logger;
     private readonly state: StateType = {
         value: {
             items: new Map<string, StateValue>(),
@@ -40,8 +44,19 @@ export default class StateMachine {
      */
     constructor(id: string, proxy_pool: ProxyPool) {
         this.id = id;
-        this.proxy_pool = proxy_pool;
         this.db = new DataBase(id);
+        this.proxy_pool = proxy_pool;
+        this.update_logger = createLogger({
+            format: format.combine(
+                format.printf(
+                    (info) => info.message
+                )
+            ),
+            transports: new dailyRoateFile({
+                filename: path.join(process.cwd(), `logs/${id}/%DATE%.log`),
+                datePattern: 'YYYY-MM-DD',
+            })
+        });
 
         // 初始化数据
         this.ready = 0;
@@ -87,12 +102,13 @@ export default class StateMachine {
     }
 
     async getInventory(times: number = 0) {
-        let proxy = config.has("proxy_url");
+        let has_proxy = config.get("has_proxy");
+
         // 尝试60次还无效就判定为死亡
         if(times === 60) return this.is_dead = false;
 
         let user_agent  = getRandomUserAgent();
-        let proxy_agent = proxy ? await this.proxy_pool.take() : '';
+        let proxy_agent = has_proxy ? await this.proxy_pool.take() : '';
 
         return new Promise((resolve) => {
             superagent.get(`https://steamcommunity.com/inventory/${this.id}/730/2?l=schinese&count=1000`)
@@ -115,8 +131,8 @@ export default class StateMachine {
                             proxy_fail.set(proxy_agent, true);
                         }
 
-                        if(proxy && times < 60) {
-                            logger.info(proxy_agent+' 代理请求失败，重新尝试中');
+                        if(has_proxy && times < 60) {
+                            logger.error((proxy_agent || '无代理ip') + ' 代理请求失败，重新尝试中');
                             return resolve(this.getInventory(times + 1));
                         }
 
@@ -141,7 +157,7 @@ export default class StateMachine {
         let timestamp = new Date().getTime();
         return this.getInventory().then((data: any) => {
             if(!data) {
-                logger.info('库存监控更新失败');
+                logger.error(`库存监控更新失败(${this.id})`);
                 console.log("更新失败：" + new Date(timestamp).toLocaleString());
                 this.status = false;
                 return;
@@ -289,16 +305,16 @@ export default class StateMachine {
             }
 
             this.state.update.timestamp = timestamp;
-            logger.info('库存监控更新成功');
+            logger.info(`库存监控更新成功${this.id}`);
 
             // 保存状态到本地
             Promise.all(Queue).then(() => {
                 // 释放内存
                 this.ready = -1;
-                logger.info('库存数据保存成功');
+                logger.info(`库存数据保存成功${this.id}`);
                 console.log(`----------保存成功(${new Date(timestamp).toLocaleString()})----------`)
             }).catch(() => {
-                logger.error('库存数据保存失败');
+                logger.error(`库存数据保存失败${this.id}`);
                 console.log(`----------保存失败(${new Date(timestamp).toLocaleString()})----------`)
             }).finally(() => {
                 this.status = false;
@@ -371,7 +387,7 @@ export default class StateMachine {
         output = output.concat(text);
 
         if(sell.size || buy.size || deposit.size || retrieve.size) {
-            saveUpdateLog.info(output);
+            this.update_logger.info(output);
         }
 
         buy.clear();

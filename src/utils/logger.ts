@@ -16,16 +16,3 @@ export const logger = createLogger({
     })]
 });
 
-export const saveUpdateLog = createLogger({
-    format: format.combine(
-        format.printf(
-            (info) => info.message
-        )
-    ),
-    transports: [new transports.Console(), new dailyRoateFile({
-        filename: path.join(process.cwd(), `logs/update/%DATE%.log`),
-        datePattern: 'YYYY-MM-DD',
-    })]
-});
-
-

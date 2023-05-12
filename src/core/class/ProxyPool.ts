@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import superagent from "superagent";
 import {StateManager} from "./StateManager";
 import {steam_429, config, getRandomUserAgent, proxy_fail} from "../../utils";
@@ -18,9 +20,9 @@ export class ProxyPool {
         this.init().finally();
     }
 
-    init() {
+    remote(): Promise<null> {
         let times = this.state_manager.getIpTimes() * 10;
-        this.superagent_state = new Promise((resolve) => {
+        return new Promise((resolve) => {
             let key = config.get("proxy_param") || "num";
             superagent.get(this.proxy_pool_url)
                 .set('User-Agent', getRandomUserAgent())
@@ -41,7 +43,7 @@ export class ProxyPool {
                             result.add(item);
                         });
 
-                        if(!result.size) resolve(this.init());
+                        if(!result.size) resolve(this.remote());
 
                         // 将最新获取的放到代理池队列出口处
                         this.proxy_pool.push(...result);
@@ -50,6 +52,37 @@ export class ProxyPool {
                     resolve(this.superagent_state = null);
                 })
         });
+    }
+
+    local(): Promise<null> {
+        return new Promise((resolve) => {
+            fs.promises.readFile(path.join(process.cwd(), 'config.json'), 'utf8')
+                .then((res: any) => {
+                    res = JSON.parse(res);
+
+                    let { proxy: { local } } = res;
+
+                    if(Array.from(local)) {
+                        let result = new Set<string>();
+                        local.forEach((item: string) => {
+                            item = item.toString();
+                            if(steam_429.has(item)) return;
+                            if(proxy_fail.has(item)) return;
+
+                            result.add(item);
+                        });
+
+                        this.proxy_pool.unshift(...result);
+                    }
+
+                    resolve(this.superagent_state = null)
+                })
+                .catch(() => resolve(this.superagent_state = null))
+        })
+    }
+
+    init() {
+        this.superagent_state = config.get('proxy_type') ? this.local() : this.remote();
 
         return this.superagent_state;
     }
